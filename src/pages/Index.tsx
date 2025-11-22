@@ -3,17 +3,40 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
+import { useToast } from '@/hooks/use-toast';
+
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  weight: string;
+  image: string;
+}
+
+interface CartItem extends Product {
+  quantity: number;
+}
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState('home');
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [deliveryType, setDeliveryType] = useState('courier');
+  const { toast } = useToast();
 
-  const products = [
+  const products: Product[] = [
     {
       id: 1,
       name: 'Голубика свежая',
       description: 'Свежесобранная голубика высшего сорта',
-      price: '450 ₽',
+      price: 450,
       weight: '500 г',
       image: 'https://cdn.poehali.dev/projects/52fa835e-77d0-4902-8aa9-75354110808c/files/a611349d-f4eb-4de5-87dc-30170118abdf.jpg'
     },
@@ -21,7 +44,7 @@ const Index = () => {
       id: 2,
       name: 'Голубика крупная',
       description: 'Отборные крупные ягоды для особых случаев',
-      price: '550 ₽',
+      price: 550,
       weight: '500 г',
       image: 'https://cdn.poehali.dev/projects/52fa835e-77d0-4902-8aa9-75354110808c/files/a611349d-f4eb-4de5-87dc-30170118abdf.jpg'
     },
@@ -29,7 +52,7 @@ const Index = () => {
       id: 3,
       name: 'Голубика органическая',
       description: 'Выращена без химикатов и удобрений',
-      price: '600 ₽',
+      price: 600,
       weight: '500 г',
       image: 'https://cdn.poehali.dev/projects/52fa835e-77d0-4902-8aa9-75354110808c/files/a611349d-f4eb-4de5-87dc-30170118abdf.jpg'
     }
@@ -57,6 +80,66 @@ const Index = () => {
       description: 'Строгий контроль на всех этапах'
     }
   ];
+
+  const addToCart = (product: Product) => {
+    setCart(prevCart => {
+      const existingItem = prevCart.find(item => item.id === product.id);
+      if (existingItem) {
+        return prevCart.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prevCart, { ...product, quantity: 1 }];
+    });
+    toast({
+      title: 'Добавлено в корзину',
+      description: `${product.name} добавлен в корзину`,
+    });
+  };
+
+  const removeFromCart = (productId: number) => {
+    setCart(prevCart => prevCart.filter(item => item.id !== productId));
+  };
+
+  const updateQuantity = (productId: number, change: number) => {
+    setCart(prevCart => {
+      return prevCart.map(item => {
+        if (item.id === productId) {
+          const newQuantity = item.quantity + change;
+          return newQuantity > 0 ? { ...item, quantity: newQuantity } : item;
+        }
+        return item;
+      }).filter(item => item.quantity > 0);
+    });
+  };
+
+  const getTotalItems = () => {
+    return cart.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  const getTotalPrice = () => {
+    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  };
+
+  const getDeliveryPrice = () => {
+    if (deliveryType === 'pickup') return 0;
+    if (deliveryType === 'courier') return 300;
+    if (deliveryType === 'express') return 500;
+    return 0;
+  };
+
+  const handleCheckout = (e: React.FormEvent) => {
+    e.preventDefault();
+    toast({
+      title: 'Заказ оформлен!',
+      description: 'Мы свяжемся с вами в ближайшее время',
+    });
+    setCart([]);
+    setIsCheckoutOpen(false);
+    setIsCartOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -87,13 +170,225 @@ const Index = () => {
                 Контакты
               </button>
             </div>
-            <Button variant="secondary" size="sm">
-              <Icon name="ShoppingCart" size={18} className="mr-2" />
-              Корзина
-            </Button>
+            
+            <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
+              <SheetTrigger asChild>
+                <Button variant="secondary" size="sm" className="relative">
+                  <Icon name="ShoppingCart" size={18} className="mr-2" />
+                  Корзина
+                  {getTotalItems() > 0 && (
+                    <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 bg-accent">
+                      {getTotalItems()}
+                    </Badge>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Корзина</SheetTitle>
+                  <SheetDescription>
+                    {cart.length === 0 ? 'Корзина пуста' : `${getTotalItems()} товаров`}
+                  </SheetDescription>
+                </SheetHeader>
+                
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+                    <Icon name="ShoppingCart" size={64} className="mb-4 opacity-20" />
+                    <p>Корзина пуста</p>
+                  </div>
+                ) : (
+                  <div className="mt-8 space-y-4">
+                    {cart.map(item => (
+                      <Card key={item.id}>
+                        <CardContent className="p-4">
+                          <div className="flex gap-4">
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-20 h-20 object-cover rounded"
+                            />
+                            <div className="flex-1">
+                              <h3 className="font-semibold">{item.name}</h3>
+                              <p className="text-sm text-muted-foreground">{item.weight}</p>
+                              <p className="text-lg font-bold text-accent mt-1">{item.price} ₽</p>
+                            </div>
+                            <div className="flex flex-col items-end justify-between">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeFromCart(item.id)}
+                              >
+                                <Icon name="Trash2" size={16} />
+                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateQuantity(item.id, -1)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Icon name="Minus" size={14} />
+                                </Button>
+                                <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => updateQuantity(item.id, 1)}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Icon name="Plus" size={14} />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                    
+                    <div className="border-t pt-4 space-y-2">
+                      <div className="flex justify-between text-lg">
+                        <span>Товары:</span>
+                        <span className="font-semibold">{getTotalPrice()} ₽</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Итого:</span>
+                        <span className="text-accent">{getTotalPrice()} ₽</span>
+                      </div>
+                    </div>
+                    
+                    <Button
+                      className="w-full bg-primary hover:bg-primary/90"
+                      size="lg"
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        setIsCheckoutOpen(true);
+                      }}
+                    >
+                      <Icon name="CreditCard" size={18} className="mr-2" />
+                      Оформить заказ
+                    </Button>
+                  </div>
+                )}
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </nav>
+
+      <Sheet open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Оформление заказа</SheetTitle>
+            <SheetDescription>
+              Заполните форму для оформления заказа
+            </SheetDescription>
+          </SheetHeader>
+          
+          <form onSubmit={handleCheckout} className="mt-8 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Имя *</Label>
+                <Input id="name" placeholder="Иван Иванов" required />
+              </div>
+              
+              <div>
+                <Label htmlFor="phone">Телефон *</Label>
+                <Input id="phone" type="tel" placeholder="+7 (___) ___-__-__" required />
+              </div>
+              
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" placeholder="ivan@example.com" />
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              <Label>Способ доставки *</Label>
+              <RadioGroup value={deliveryType} onValueChange={setDeliveryType}>
+                <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50">
+                  <RadioGroupItem value="courier" id="courier" />
+                  <Label htmlFor="courier" className="flex-1 cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">Курьерская доставка</p>
+                        <p className="text-sm text-muted-foreground">1-2 дня</p>
+                      </div>
+                      <span className="font-semibold">300 ₽</span>
+                    </div>
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50">
+                  <RadioGroupItem value="express" id="express" />
+                  <Label htmlFor="express" className="flex-1 cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">Экспресс-доставка</p>
+                        <p className="text-sm text-muted-foreground">В день заказа</p>
+                      </div>
+                      <span className="font-semibold">500 ₽</span>
+                    </div>
+                  </Label>
+                </div>
+                
+                <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50">
+                  <RadioGroupItem value="pickup" id="pickup" />
+                  <Label htmlFor="pickup" className="flex-1 cursor-pointer">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold">Самовывоз</p>
+                        <p className="text-sm text-muted-foreground">С фермы</p>
+                      </div>
+                      <span className="font-semibold text-green-600">Бесплатно</span>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+            
+            {deliveryType !== 'pickup' && (
+              <div>
+                <Label htmlFor="address">Адрес доставки *</Label>
+                <Textarea
+                  id="address"
+                  placeholder="Укажите полный адрес доставки"
+                  rows={3}
+                  required
+                />
+              </div>
+            )}
+            
+            <div>
+              <Label htmlFor="comment">Комментарий к заказу</Label>
+              <Textarea
+                id="comment"
+                placeholder="Особые пожелания или уточнения"
+                rows={3}
+              />
+            </div>
+            
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex justify-between">
+                <span>Товары:</span>
+                <span className="font-semibold">{getTotalPrice()} ₽</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Доставка:</span>
+                <span className="font-semibold">{getDeliveryPrice()} ₽</span>
+              </div>
+              <div className="flex justify-between text-xl font-bold">
+                <span>Итого:</span>
+                <span className="text-accent">{getTotalPrice() + getDeliveryPrice()} ₽</span>
+              </div>
+            </div>
+            
+            <Button type="submit" className="w-full bg-primary hover:bg-primary/90" size="lg">
+              <Icon name="Check" size={18} className="mr-2" />
+              Подтвердить заказ
+            </Button>
+          </form>
+        </SheetContent>
+      </Sheet>
 
       {activeSection === 'home' && (
         <>
@@ -138,13 +433,16 @@ const Index = () => {
                     <CardContent>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-3xl font-bold text-accent">{product.price}</p>
+                          <p className="text-3xl font-bold text-accent">{product.price} ₽</p>
                           <p className="text-sm text-muted-foreground">{product.weight}</p>
                         </div>
                       </div>
                     </CardContent>
                     <CardFooter>
-                      <Button className="w-full bg-primary hover:bg-primary/90">
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90"
+                        onClick={() => addToCart(product)}
+                      >
                         <Icon name="ShoppingCart" size={18} className="mr-2" />
                         В корзину
                       </Button>
@@ -318,20 +616,20 @@ const Index = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Ваше имя</label>
-                    <Input placeholder="Иван Иванов" />
+                    <Label htmlFor="contact-name">Ваше имя</Label>
+                    <Input id="contact-name" placeholder="Иван Иванов" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Телефон</label>
-                    <Input placeholder="+7 (___) ___-__-__" />
+                    <Label htmlFor="contact-phone">Телефон</Label>
+                    <Input id="contact-phone" placeholder="+7 (___) ___-__-__" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Email</label>
-                    <Input type="email" placeholder="ivan@example.com" />
+                    <Label htmlFor="contact-email">Email</Label>
+                    <Input id="contact-email" type="email" placeholder="ivan@example.com" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Сообщение</label>
-                    <Textarea placeholder="Расскажите, что вас интересует..." rows={4} />
+                    <Label htmlFor="contact-message">Сообщение</Label>
+                    <Textarea id="contact-message" placeholder="Расскажите, что вас интересует..." rows={4} />
                   </div>
                 </CardContent>
                 <CardFooter>
